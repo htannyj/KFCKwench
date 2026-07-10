@@ -17,16 +17,6 @@ const DRINKS = [
 const CAT_COLORS = { 'LEMONADES':'#FFB100', 'BOBA REFRESHERS':'#05A8A6', 'KRUNCH SHAKES':'#8B5E34', 'SPIDERS':'#3949AB' };
 
 let globalRatings = {};
-let clientId = getOrCreateClientId();
-
-function getOrCreateClientId() {
-  let id = localStorage.getItem('kwench_client_id');
-  if (!id) {
-    id = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-    localStorage.setItem('kwench_client_id', id);
-  }
-  return id;
-}
 
 function cupSvg(color, id) {
   return `<svg class="cup" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg">
@@ -54,8 +44,7 @@ function renderGrid() {
   grid.innerHTML = '';
   
   DRINKS.forEach(d => {
-    const drinkRatings = globalRatings[d.id] || {};
-    const ownScore = drinkRatings[clientId] !== undefined ? drinkRatings[clientId] : 5;
+    const activeScore = globalRatings[d.id] !== undefined ? globalRatings[d.id] : 5;
     
     const card = document.createElement('div');
     card.className = 'card';
@@ -72,15 +61,15 @@ function renderGrid() {
       <div class="rate-row">
         ${cupSvg(d.color, d.id)}
         <div class="slider-col">
-          <input type="range" min="1" max="10" step="1" value="${ownScore}" id="range-${d.id}">
+          <input type="range" min="1" max="10" step="1" value="${activeScore}" id="range-${d.id}">
           <div class="slider-labels"><span>1</span><span>10</span></div>
         </div>
-        <div class="rate-value" id="val-${d.id}" style="color:${d.color}">${ownScore}</div>
+        <div class="rate-value" id="val-${d.id}" style="color:${d.color}">${activeScore}</div>
       </div>
       <div class="saved-pill" id="pill-${d.id}">✓ Saved</div>
     `;
     grid.appendChild(card);
-    setCupFill(d.id, ownScore);
+    setCupFill(d.id, activeScore);
 
     const range = card.querySelector(`#range-${d.id}`);
     const valEl = card.querySelector(`#val-${d.id}`);
@@ -99,10 +88,10 @@ function renderGrid() {
       pill.classList.add('show');
       
       try {
-        await setDoc(doc(db, "kwench-rankings", d.id, "ratings", clientId), { score: score });
+        // Overwrites the single global master score for this drink ID
+        await setDoc(doc(db, "kwench-scores", d.id), { score: score });
         pill.textContent = '✓ Saved';
         pill.style.color = '#3a9a5c';
-        renderLeaderboard();
       } catch (err) {
         console.error("Firestore save error: ", err);
         pill.textContent = '⚠ Could not save — try moving the slider again';
@@ -119,26 +108,24 @@ function renderLeaderboard() {
   const board = document.getElementById('board');
   
   const scoredDrinks = DRINKS.map(d => {
-    const scoresObj = globalRatings[d.id] || {};
-    const scores = Object.values(scoresObj);
-    const count = scores.length;
-    const avg = count > 0 ? scores.reduce((a, b) => a + b, 0) / count : null;
-    return { ...d, avg, count };
+    const score = globalRatings[d.id] !== undefined ? globalRatings[d.id] : null;
+    return { ...d, score };
   });
 
+  // Sort strictly by the shared master score
   scoredDrinks.sort((a, b) => {
-    if (a.avg === null && b.avg === null) return 0;
-    if (a.avg === null) return 1;
-    if (b.avg === null) return -1;
-    return b.avg - a.avg;
+    if (a.score === null && b.score === null) return 0;
+    if (a.score === null) return 1;
+    if (b.score === null) return -1;
+    return b.score - a.score;
   });
 
   board.innerHTML = '';
   scoredDrinks.forEach((d, i) => {
     const row = document.createElement('div');
     row.className = 'board-row';
-    const rankClass = (i === 0 && d.avg !== null) ? 'gold' : '';
-    const pct = d.avg !== null ? (d.avg / 10) * 100 : 0;
+    const rankClass = (i === 0 && d.score !== null) ? 'gold' : '';
+    const pct = d.score !== null ? (d.score / 10) * 100 : 0;
     
     row.innerHTML = `
       <div class="rank-num ${rankClass}">${i + 1}</div>
@@ -149,8 +136,8 @@ function renderLeaderboard() {
       </div>
       <div class="board-bar-wrap"><div class="board-bar" style="width:${pct}%;background:${d.color}"></div></div>
       <div class="board-score">
-        ${d.avg !== null ? d.avg.toFixed(1) : '—'}
-        <small>${d.avg !== null ? d.count + ' rating' + (d.count === 1 ? '' : 's') : 'unrated'}</small>
+        ${d.score !== null ? d.score : '—'}
+        <small>${d.score !== null ? 'Live Score' : 'unrated'}</small>
       </div>
     `;
     board.appendChild(row);
@@ -161,11 +148,12 @@ function listenToDatabase() {
   let loadedDrinksCount = 0;
   
   DRINKS.forEach(d => {
-    onSnapshot(collection(db, "kwench-rankings", d.id, "ratings"), (snapshot) => {
-      globalRatings[d.id] = {};
-      snapshot.forEach(doc => {
-        globalRatings[d.id][doc.id] = doc.data().score;
-      });
+    onSnapshot(doc(db, "kwench-scores", d.id), (snapshot) => {
+      if (snapshot.exists()) {
+        globalRatings[d.id] = snapshot.data().score;
+      } else {
+        globalRatings[d.id] = 5; // Default if completely untouched yet
+      }
       
       if (loadedDrinksCount < DRINKS.length) {
         loadedDrinksCount++;
@@ -176,12 +164,11 @@ function listenToDatabase() {
         DRINKS.forEach(drink => {
           const rInput = document.getElementById(`range-${drink.id}`);
           if (rInput && document.activeElement !== rInput) {
-            const scoreObj = globalRatings[drink.id] || {};
-            const scoreVal = scoreObj[clientId] !== undefined ? scoreObj[clientId] : 5;
-            rInput.value = scoreVal;
+            const currentScore = globalRatings[drink.id];
+            rInput.value = currentScore;
             const valLabel = document.getElementById(`val-${drink.id}`);
-            if (valLabel) valLabel.textContent = scoreVal;
-            setCupFill(drink.id, scoreVal);
+            if (valLabel) valLabel.textContent = currentScore;
+            setCupFill(drink.id, currentScore);
           }
         });
       }
