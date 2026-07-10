@@ -1,11 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Replace these values with your actual web configuration settings from the Firebase console
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyBp0TSoBlDIqD66wWTCwuZCcrxLVfrftdo",
+  apiKey: "AIzaSyBp0TSoBlDIQd66wWTCwuZCcrxLVfrftdo",
   authDomain: "kwench-rankings.firebaseapp.com",
   projectId: "kwench-rankings",
   storageBucket: "kwench-rankings.firebasestorage.app",
@@ -14,6 +11,5 @@ const firebaseConfig = {
   measurementId: "G-JP7GHTW9QB"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+export const db = getFirestore(app);
