@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>H+J KFC Kwench Rankings</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="banner">
+    <div class="strawline">
+      <span class="tag">LEMONADES</span>
+      <span class="tag">BOBA REFRESHERS</span>
+      <span class="tag">KRUNCH SHAKES</span>
+      <span class="tag">SPIDERS</span>
+    </div>
+    <h1>H+J KFC<br><span>KWENCH RANKINGS</span></h1>
+    <p>Slide to rate every KWENCH by KFC drink from 1–10. Ratings are shared — everyone who opens this page adds to the board.</p>
+  </div>
+
+  <div class="wrap">
+    <h2 class="section-head">The Leaderboard</h2>
+    <div class="section-sub">Live, ranked by everyone's average score</div>
+    <div class="board" id="board">
+      <div class="loading">Loading the board…</div>
+    </div>
+
+    <h2 class="section-head" style="margin-top:48px;">Rate Every Drink</h2>
+    <div class="section-sub">Drag the slider — your score saves automatically</div>
+    <div class="grid" id="grid">
+      <div class="loading">Filling the cups…</div>
+    </div>
+
+    <div class="footnote">Menu &amp; images from KFC Australia's KWENCH by KFC lineup · Ratings stored here are visible to anyone with this page open</div>
+  </div>
+
+  <!-- Firebase SDK Modules -->
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
