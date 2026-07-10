@@ -18,7 +18,6 @@ const CAT_COLORS = { 'LEMONADES':'#FFB100', 'BOBA REFRESHERS':'#05A8A6', 'KRUNCH
 
 let globalRatings = {};
 let clientId = getOrCreateClientId();
-let debounceTimers = {};
 
 function getOrCreateClientId() {
   let id = localStorage.getItem('kwench_client_id');
@@ -78,7 +77,7 @@ function renderGrid() {
         </div>
         <div class="rate-value" id="val-${d.id}" style="color:${d.color}">${ownScore}</div>
       </div>
-      <div class="saved-pill" id="pill-${d.id}">☁ Saving...</div>
+      <div class="saved-pill" id="pill-${d.id}">✓ Saved</div>
     `;
     grid.appendChild(card);
     setCupFill(d.id, ownScore);
@@ -86,31 +85,32 @@ function renderGrid() {
     const range = card.querySelector(`#range-${d.id}`);
     const valEl = card.querySelector(`#val-${d.id}`);
     const pill = card.querySelector(`#pill-${d.id}`);
+    let saveTimeout;
 
     range.addEventListener('input', () => {
       valEl.textContent = range.value;
       setCupFill(d.id, parseInt(range.value, 10));
-      
-      pill.textContent = '☁ Saving...';
+    });
+
+    range.addEventListener('change', async () => {
+      const score = parseInt(range.value, 10);
+      pill.textContent = 'Saving…';
       pill.style.color = '#a99c85';
       pill.classList.add('show');
       
-      // Debounce saving to firestore 300ms after slider dragging pauses
-      clearTimeout(debounceTimers[d.id]);
-      debounceTimers[d.id] = setTimeout(async () => {
-        const score = parseInt(range.value, 10);
-        try {
-          // Direct nested document save layout
-          await setDoc(doc(db, "kwench-rankings", d.id, "ratings", clientId), { score: score });
-          pill.textContent = '✔ Saved';
-          pill.style.color = '#3a9a5c';
-          setTimeout(() => pill.classList.remove('show'), 1500);
-        } catch (err) {
-          console.error("Firestore save failure: ", err);
-          pill.textContent = '⚠ Save Failed';
-          pill.style.color = '#c0392b';
-        }
-      }, 300);
+      try {
+        await setDoc(doc(db, "kwench-rankings", d.id, "ratings", clientId), { score: score });
+        pill.textContent = '✓ Saved';
+        pill.style.color = '#3a9a5c';
+        renderLeaderboard();
+      } catch (err) {
+        console.error("Firestore save error: ", err);
+        pill.textContent = '⚠ Could not save — try moving the slider again';
+        pill.style.color = '#c0392b';
+      }
+      
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => pill.classList.remove('show'), 1400);
     });
   });
 }
@@ -157,7 +157,6 @@ function renderLeaderboard() {
   });
 }
 
-// Synchronize database updates globally across all clients instantly using Firestore Listeners
 function listenToDatabase() {
   let loadedDrinksCount = 0;
   
@@ -172,10 +171,8 @@ function listenToDatabase() {
         loadedDrinksCount++;
       }
       
-      // Re-trigger visual updates when changes stream in
       if (loadedDrinksCount >= DRINKS.length) {
         renderLeaderboard();
-        // Update local items dynamically without wiping input fields while dragging
         DRINKS.forEach(drink => {
           const rInput = document.getElementById(`range-${drink.id}`);
           if (rInput && document.activeElement !== rInput) {
@@ -193,7 +190,6 @@ function listenToDatabase() {
     });
   });
   
-  // Clean initialization fallback render layout
   setTimeout(() => {
     renderGrid();
     renderLeaderboard();
